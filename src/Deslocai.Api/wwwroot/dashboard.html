@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deslocai · Painel Executivo de Risco Cidadão</title>
+<style>
+  :root{--bg:#0f172a;--card:#1e293b;--line:#334155;--tx:#e2e8f0;--mut:#94a3b8;--ok:#22c55e;--warn:#eab308;--hi:#f97316;--crit:#ef4444;--acc:#38bdf8}
+  *{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+  header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding:16px 24px;border-bottom:1px solid var(--line)}
+  h1{font-size:18px;margin:0}h1 small{color:var(--mut);font-weight:400;margin-left:8px}
+  button{background:var(--card);color:var(--tx);border:1px solid var(--line);padding:8px 12px;border-radius:8px;cursor:pointer;font:inherit}
+  button:hover{border-color:var(--acc)}button.danger{border-color:#7f1d1d}button.good{border-color:#14532d}
+  main{padding:20px 24px;display:grid;gap:16px;grid-template-columns:repeat(12,1fr)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .c4{grid-column:span 4}.c8{grid-column:span 8}.c12{grid-column:span 12}
+  @media(max-width:900px){.c4,.c8{grid-column:span 12}}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:0 0 12px}
+  .gauge{text-align:center}.big{font-size:56px;font-weight:700;line-height:1}.lvl{font-size:16px;font-weight:600;margin-top:4px}
+  .kpis{display:flex;gap:12px;justify-content:center;margin-top:12px;flex-wrap:wrap}.kpi b{display:block;font-size:20px}.kpi span{color:var(--mut);font-size:12px}
+  table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mut);font-weight:500;font-size:12px}
+  .tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;border:1px solid var(--line);margin:1px}
+  .Open{color:var(--crit)}.Mitigated,.Resolved{color:var(--ok)}.Blocked{color:var(--acc)}
+  .farol{display:flex;gap:10px;justify-content:center;margin:6px 0 4px}.farol i{width:34px;height:34px;border-radius:50%;background:#0b1220;border:2px solid var(--line);opacity:.35}
+  .farol i.on{opacity:1;box-shadow:0 0 14px currentColor}.fv{color:var(--ok)}.fa{color:var(--warn)}.fr{color:var(--crit)}
+  .fv.on{background:var(--ok)}.fa.on{background:var(--warn)}.fr.on{background:var(--crit)}
+  .msg{font-size:17px;line-height:1.5}
+  code,pre{font-family:ui-monospace,Consolas,monospace;font-size:12px}pre{background:#0b1220;padding:10px;border-radius:8px;overflow:auto;white-space:pre-wrap;margin:6px 0}
+  .bar{height:8px;border-radius:4px;background:#0b1220;overflow:hidden;min-width:80px}.bar i{display:block;height:100%}
+  .muted{color:var(--mut)}#ai{padding:2px 8px;border-radius:99px;font-size:12px}
+  details{margin-top:6px}summary{cursor:pointer;color:var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Deslocai · Risco Cidadão <small>Cybersecurity · Taint Analysis + PII (LGPD)</small></h1>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <span id="ai" class="tag"></span>
+    <button id="modeBtn" onclick="toggleMode()">Modo: …</button>
+    <button class="danger" onclick="simulate('v1')">▶ Simular tráfego VULNERÁVEL (v1)</button>
+    <button class="good" onclick="simulate('v2')">▶ Simular tráfego CORRIGIDO (v2)</button>
+    <button onclick="reset()">↺ Reset</button>
+  </div>
+</header>
+<main>
+  <section class="card c12" id="citizen">
+    <h2>Mensagem para o cidadão · traduzida por IA</h2>
+    <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">
+      <div style="min-width:180px;text-align:center"><div class="farol"><i class="fr" id="fr"></i><i class="fa" id="fa"></i><i class="fv" id="fv"></i></div><div id="farolTxt" class="lvl">—</div></div>
+      <div style="flex:1;min-width:260px"><div class="msg" id="cMsg">Carregando…</div><div class="muted" style="margin-top:8px;font-size:12px">Evento técnico: <code id="cTech">—</code> · tradução: <b id="cSrc">—</b></div></div>
+    </div>
+  </section>
+  <section class="card c4 gauge">
+    <h2>Indicador Risco Cidadão</h2>
+    <div class="big" id="score">0</div>
+    <div class="lvl" id="level">—</div>
+    <div class="kpis">
+      <div class="kpi"><b id="kOpen">0</b><span>fluxos abertos</span></div>
+      <div class="kpi"><b id="kMit">0</b><span>mitigados</span></div>
+      <div class="kpi"><b id="kRes">0</b><span>corrigidos</span></div>
+    </div>
+  </section>
+  <section class="card c8"><h2>Evolução do risco</h2><svg id="spark" viewBox="0 0 600 140" width="100%" height="140" preserveAspectRatio="none"></svg></section>
+  <section class="card c4"><h2>PII exposta por tipo (fluxos abertos)</h2><div id="types" class="muted">—</div></section>
+  <section class="card c8"><h2>Risco por endpoint</h2><table id="eps"><thead><tr><th>Endpoint</th><th>Score</th><th>Nível</th><th>Abertos</th><th>Mitigados</th></tr></thead><tbody></tbody></table></section>
+  <section class="card c12"><h2>Auditoria · Fluxos source → sink</h2>
+    <table id="fnd"><thead><tr><th>Status</th><th>Endpoint</th><th>Source → Sink</th><th>PII</th><th>Evidência (mascarada)</th><th>Código</th><th>Ação</th></tr></thead><tbody></tbody></table>
+  </section>
+</main>
+<script>
+const SAMPLE = {nome:"Maria Souza",cpf:"529.982.247-25",email:"maria.souza@exemplo.com",telefone:"(11) 98765-4321",estacao:"Osasco",descricao:"Elevador parado, sou cadeirante e preciso chegar ao trabalho"};
+const color = s => s<25?'var(--ok)':s<50?'var(--warn)':s<75?'var(--hi)':'var(--crit)';
+const esc = s => String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+async function simulate(v){
+  await fetch('/api/'+v+'/relatos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(SAMPLE)});
+  refresh();
+}
+async function toggleMode(){
+  const cur=(await (await fetch('/api/mode')).json()).modo;
+  await fetch('/api/mode/'+(cur==='Bloqueio'?'auditoria':'bloqueio'),{method:'POST'}); refresh();
+}
+async function reset(){ await fetch('/api/reset',{method:'POST'}); refresh(); }
+async function resolveF(id){ await fetch('/api/findings/'+id+'/resolve',{method:'POST'}); refresh(); }
+async function remediate(id,btn){
+  btn.disabled=true; btn.textContent='Analisando…';
+  const r = await (await fetch('/api/remediation/'+id,{method:'POST'})).json();
+  document.getElementById('rem-'+id).innerHTML = `<details open><summary>Sugestão (${esc(r.source)}) · severidade ${esc(r.severity)}</summary>
+    <p>${esc(r.explanation)}</p><p class="muted">${esc(r.lgpd)}</p><pre>${esc(r.fixedCode)}</pre>
+    <ul>${r.verification.map(v=>'<li>'+esc(v)+'</li>').join('')}</ul></details>`;
+  btn.textContent='Remediar com IA'; btn.disabled=false;
+}
+function spark(tl){
+  const svg=document.getElementById('spark'); if(tl.length<2){svg.innerHTML='<text x="10" y="70" fill="#94a3b8">Sem dados — simule tráfego</text>';return;}
+  const pts=tl.map((p,i)=>[i/(tl.length-1)*580+10,130-p.score/100*120]);
+  svg.innerHTML=[25,50,75].map(y=>`<line x1="10" x2="590" y1="${130-y*1.2}" y2="${130-y*1.2}" stroke="#334155" stroke-dasharray="3"/>`).join('')+
+   `<polyline fill="none" stroke="#38bdf8" stroke-width="2" points="${pts.map(p=>p.join(',')).join(' ')}"/>`+
+   `<circle cx="${pts.at(-1)[0]}" cy="${pts.at(-1)[1]}" r="4" fill="#38bdf8"/>`;
+}
+async function refresh(){
+  const [risk,f,ai,mode,cz]=await Promise.all([fetch('/api/risk').then(r=>r.json()),fetch('/api/findings').then(r=>r.json()),fetch('/api/ai-status').then(r=>r.json()),fetch('/api/mode').then(r=>r.json()),fetch('/api/citizen').then(r=>r.json())]);
+  document.getElementById('modeBtn').textContent='Modo: '+mode.modo.toUpperCase()+' (clique para alternar)';
+  for(const k of ['fr','fa','fv']) document.getElementById(k).classList.remove('on');
+  document.getElementById({vermelho:'fr',amarelo:'fa',verde:'fv'}[cz.farol]).classList.add('on');
+  const ft=document.getElementById('farolTxt'); ft.textContent={vermelho:'Atenção',amarelo:'Cuidado',verde:'Protegido'}[cz.farol]; ft.style.color={vermelho:'var(--crit)',amarelo:'var(--warn)',verde:'var(--ok)'}[cz.farol];
+  cMsg.textContent=cz.message; cTech.textContent=cz.technical; cSrc.textContent=cz.source;
+  const sc=document.getElementById('score'); sc.textContent=risk.score; sc.style.color=color(risk.score);
+  const lv=document.getElementById('level'); lv.textContent=risk.level; lv.style.color=color(risk.score);
+  kOpen.textContent=risk.openFindings; kMit.textContent=risk.mitigatedFindings; kRes.textContent=risk.resolvedFindings;
+  document.getElementById('ai').textContent = ai.aiEnabled ? 'IA: Claude ativo' : 'IA: modo offline (defina ANTHROPIC_API_KEY)';
+  spark(risk.timeline);
+  const t=Object.entries(risk.byPiiType).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('types').innerHTML = t.length? t.map(([k,v])=>`<div style="display:flex;gap:8px;align-items:center;margin:4px 0"><span style="width:110px">${k}</span><div class="bar" style="flex:1"><i style="width:${Math.min(100,v*25)}%;background:var(--hi)"></i></div><b>${v}</b></div>`).join('') : 'Nenhuma exposição aberta';
+  document.querySelector('#eps tbody').innerHTML = risk.endpoints.map(e=>`<tr><td><code>${esc(e.endpoint)}</code></td><td><div class="bar"><i style="width:${e.score}%;background:${color(e.score)}"></i></div> <b>${e.score}</b></td><td style="color:${color(e.score)}">${e.level}</td><td>${e.openFlows}</td><td>${e.mitigatedFlows}</td></tr>`).join('')||'<tr><td colspan=5 class="muted">Sem dados</td></tr>';
+  document.querySelector('#fnd tbody').innerHTML = f.map(x=>`<tr><td class="${x.status}"><b>${x.status}</b><br><span class="muted">×${x.count}</span></td>
+    <td><code>${esc(x.endpoint)}</code><br><span class="tag">${x.kind}</span>${x.vulnerableGroup?'<span class="tag" style="color:var(--hi)">PCD/idoso</span>':''}</td>
+    <td><code>${esc(x.source)}</code> → <b>${x.sink}</b></td><td>${x.piiTypes.map(p=>'<span class="tag">'+p+'</span>').join('')||'—'}</td>
+    <td><code>${esc(x.evidenceMasked)}</code></td><td class="muted">${esc(x.file)}${x.line?':'+x.line:''}</td>
+    <td>${(x.status==='Open'||x.status==='Blocked')?`<button onclick="remediate('${x.id}',this)">Remediar com IA</button> <button onclick="resolveF('${x.id}')">Marcar corrigido</button>`:''}<div id="rem-${x.id}"></div></td></tr>`).join('')||'<tr><td colspan=7 class="muted">Nenhum fluxo. Clique em "Simular tráfego".</td></tr>';
+}
+refresh(); setInterval(refresh,4000);
+</script>
+</body>
+</html>

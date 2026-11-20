@@ -1,0 +1,27 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Deslocai.Api", "src\Deslocai.Api\Deslocai.Api.csproj", "{6B1D7C3A-2E4F-4A8B-9C10-5D3E7F2A1B01}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Deslocai.Tests", "tests\Deslocai.Tests\Deslocai.Tests.csproj", "{9A2E4F6C-1B3D-4C5E-8F70-3A1C5E7B9D02}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6B1D7C3A-2E4F-4A8B-9C10-5D3E7F2A1B01}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B1D7C3A-2E4F-4A8B-9C10-5D3E7F2A1B01}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B1D7C3A-2E4F-4A8B-9C10-5D3E7F2A1B01}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B1D7C3A-2E4F-4A8B-9C10-5D3E7F2A1B01}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9A2E4F6C-1B3D-4C5E-8F70-3A1C5E7B9D02}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9A2E4F6C-1B3D-4C5E-8F70-3A1C5E7B9D02}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9A2E4F6C-1B3D-4C5E-8F70-3A1C5E7B9D02}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9A2E4F6C-1B3D-4C5E-8F70-3A1C5E7B9D02}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

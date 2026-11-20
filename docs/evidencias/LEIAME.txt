@@ -1,0 +1,7 @@
+Coloque aqui os prints da aplicação (exigidos como "Evidências da aplicação"):
+ 1. swagger-endpoints.png      -> página /swagger com a lista de endpoints
+ 2. post-leitura-alerta.png    -> POST /api/leituras devolvendo alertasGerados
+ 3. patch-elevador-status.png  -> PATCH /api/equipamentos/{id}/status e o alerta aberto em GET /api/alertas
+ 4. get-impacto.png            -> GET /api/indicadores/impacto
+ 5. dotnet-test.png            -> saída do "dotnet test" com todos os testes passando
+Depois referencie as imagens no README.
