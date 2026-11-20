@@ -6,7 +6,7 @@ using Deslocai.Security.Taint;
 
 namespace Deslocai.Security;
 
-
+/// <summary>Ponto único de integração do módulo de Cybersecurity com qualquer app ASP.NET Core.</summary>
 public static class SecurityExtensions
 {
     public static IServiceCollection AddDeslocaSecurity(this IServiceCollection services)
@@ -16,20 +16,21 @@ public static class SecurityExtensions
         services.AddSingleton<FindingStore>();
         services.AddSingleton<RiskScoreService>();
         services.AddSingleton<SecurityMode>();
-        services.AddHttpClient<CitizenTranslator>();
-        services.AddHttpClient<AiRemediationService>();
+        services.AddSingleton<CitizenTranslator>();
+        services.AddSingleton<LlmClient>();
+        services.AddSingleton<AiRemediationService>();
         services.AddScoped<TaintContext>();
         services.AddScoped<SinkGuard>();
         return services;
     }
 
-  
+    /// <summary>Registra o middleware de taint (sources) e os endpoints de auditoria/dashboard/demo.</summary>
     public static WebApplication UseDeslocaSecurity(this WebApplication app)
     {
-        app.UseStaticFiles();                      
+        app.UseStaticFiles();                       // serve wwwroot (dashboard)
         app.UseMiddleware<TaintMiddleware>();
 
-      
+        // Motor de PII (público): detecta, classifica e mascara
         app.MapPost("/api/pii/scan", (ScanRequest req, PiiDetector d) =>
         {
             var r = d.Scan(req.Text);
@@ -48,7 +49,7 @@ public static class SecurityExtensions
             flowRisk = RiskScoreService.FlowRaw(f)
         }));
         app.MapGet("/api/risk", (RiskScoreService r) => r.Compute());
-        app.MapGet("/api/ai-status", (AiRemediationService ai) => new { aiEnabled = ai.AiEnabled });
+        app.MapGet("/api/ai-status", (LlmClient llm) => new { aiEnabled = llm.Enabled, provider = llm.Provider, label = llm.Label, lastError = llm.LastError });
         app.MapPost("/api/remediation/{id}", async (string id, FindingStore s, AiRemediationService ai, CancellationToken ct) =>
         {
             var f = s.Get(id); if (f is null) return Results.NotFound();
@@ -57,7 +58,7 @@ public static class SecurityExtensions
             return Results.Ok(res);
         });
         app.MapPost("/api/findings/{id}/resolve", (string id, FindingStore s) => s.Resolve(id) ? Results.Ok() : Results.NotFound());
-       
+        // Modo do Taint: Auditoria (registra) ou Bloqueio (impede o vazamento)
         app.MapGet("/api/mode", (SecurityMode m) => new { modo = m.Name });
         app.MapPost("/api/mode/{modo}", (string modo, SecurityMode m) =>
         {
@@ -66,7 +67,7 @@ public static class SecurityExtensions
             return Results.Ok(new { modo = m.Name });
         });
 
-       
+        // Risco Cidadão: farol + mensagem do evento mais relevante traduzida por IA para leigos
         app.MapGet("/api/citizen", async (FindingStore s, RiskScoreService r, CitizenTranslator t, CancellationToken ct) =>
         {
             var all = s.Snapshot(); var risk = r.Compute();
@@ -82,11 +83,10 @@ public static class SecurityExtensions
                       : all.Any(x => x.Status == "Blocked") ? "amarelo" : "verde";
             return Results.Ok(new { farol, score = risk.Score, level = risk.Level, status = f.Status, source, technical = CitizenTranslator.Describe(f), message = text });
         });
-        app.MapGet("/api/citizen-ai", (CitizenTranslator t) => new { aiEnabled = t.AiEnabled });
-
+        
         app.MapPost("/api/reset", (FindingStore s, RiskScoreService r) => { s.Reset(); r.ResetTimeline(); return Results.Ok(); });
 
-        DemoEndpoints.Map(app);                     
+        DemoEndpoints.Map(app);                     // /api/v1/relatos (vulnerável) e /api/v2/relatos (corrigido)
         return app;
     }
 }

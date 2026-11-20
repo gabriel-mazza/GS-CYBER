@@ -1,24 +1,24 @@
 using System.Collections.Concurrent;
-using System.Text;
-using System.Text.Json;
 using Deslocai.Security.Pii;
 using Deslocai.Security.Taint;
 
 namespace Deslocai.Security.Remediation;
 
-
+/// <summary>
+/// RISCO CIDADÃO · tradução via IA: transforma o evento técnico de segurança em linguagem humana
+/// ("cidadão leigo de 60 anos, em 2 frases"). Só o texto técnico SEM PII vai para a IA.
+/// Sem ANTHROPIC_API_KEY (ou se a IA falhar) usa mensagens offline, para o sistema nunca ficar mudo.
+/// </summary>
 public class CitizenTranslator
 {
-    private readonly HttpClient _http;
-    private readonly string? _key = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
-    private readonly string _model = Environment.GetEnvironmentVariable("ANTHROPIC_MODEL") ?? "claude-sonnet-5-5";
+    private readonly LlmClient _llm;
     private readonly ConcurrentDictionary<string, (string Text, string Source)> _cache = new();
     private DateTime _aiDownUntil = DateTime.MinValue;
 
-    public CitizenTranslator(HttpClient http) { _http = http; _http.Timeout = TimeSpan.FromSeconds(8); }
-    public bool AiEnabled => !string.IsNullOrWhiteSpace(_key);
+    public CitizenTranslator(LlmClient llm) => _llm = llm;
+    public bool AiEnabled => _llm.Enabled;
 
-    
+    /// <summary>Descrição técnica do evento (nunca contém dado pessoal real).</summary>
     public static string Describe(Finding f)
     {
         var tipos = f.PiiTypes.Count > 0 ? string.Join(", ", f.PiiTypes) : "entrada não confiável";
@@ -41,7 +41,7 @@ public class CitizenTranslator
         {
             try
             {
-                var r = (await CallClaude(Describe(f), ct), $"claude ({_model})");
+                var r = (await Ask(Describe(f), ct), _llm.Label);
                 _cache[key] = r;
                 return r;
             }
@@ -50,24 +50,15 @@ public class CitizenTranslator
         return (Offline(f), AiEnabled ? "offline-rules (IA indisponível)" : "offline-rules");
     }
 
-    private async Task<string> CallClaude(string technical, CancellationToken ct)
+    private Task<string> Ask(string technical, CancellationToken ct)
     {
         const string system = "Você é o assistente de privacidade do aplicativo de transporte público Deslocai. Responda SOMENTE com o texto final, em português do Brasil, " +
             "tom calmo e acolhedor, sem jargão técnico, sem citar rotas, sistemas ou códigos. Nunca peça dados pessoais.";
         var user = $"Traduza a falha técnica '{technical}' para um cidadão leigo de 60 anos, em 2 frases.";
-        var payload = JsonSerializer.Serialize(new { model = _model, max_tokens = 200, system, messages = new[] { new { role = "user", content = user } } });
-        using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages") { Content = new StringContent(payload, Encoding.UTF8, "application/json") };
-        req.Headers.Add("x-api-key", _key); req.Headers.Add("anthropic-version", "2023-06-01");
-        using var resp = await _http.SendAsync(req, ct);
-        resp.EnsureSuccessStatusCode();
-        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-        var text = string.Concat(doc.RootElement.GetProperty("content").EnumerateArray()
-            .Where(c => c.GetProperty("type").GetString() == "text").Select(c => c.GetProperty("text").GetString())).Trim();
-        if (text.Length == 0) throw new InvalidOperationException("resposta vazia");
-        return text;
+        return _llm.CompleteAsync(system, user, 1000, json: false, ct);
     }
 
-    
+    /// <summary>Mensagens de reserva, escritas para um leigo, por tipo de dado e estado do fluxo.</summary>
     public static string Offline(Finding f)
     {
         if (f.Kind == "SQL_INJECTION")

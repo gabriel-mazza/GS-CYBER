@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
@@ -83,7 +83,7 @@ async function reset(){ await fetch('/api/reset',{method:'POST'}); refresh(); }
 async function resolveF(id){ await fetch('/api/findings/'+id+'/resolve',{method:'POST'}); refresh(); }
 async function remediate(id,btn){
   btn.disabled=true; btn.textContent='Analisando…';
-  const r = await (await fetch('/api/remediation/'+id,{method:'POST'})).json();
+  window.pausa=true; window.pausa=true; const r = await (await fetch('/api/remediation/'+id,{method:'POST'})).json();
   document.getElementById('rem-'+id).innerHTML = `<details open><summary>Sugestão (${esc(r.source)}) · severidade ${esc(r.severity)}</summary>
     <p>${esc(r.explanation)}</p><p class="muted">${esc(r.lgpd)}</p><pre>${esc(r.fixedCode)}</pre>
     <ul>${r.verification.map(v=>'<li>'+esc(v)+'</li>').join('')}</ul></details>`;
@@ -106,7 +106,7 @@ async function refresh(){
   const sc=document.getElementById('score'); sc.textContent=risk.score; sc.style.color=color(risk.score);
   const lv=document.getElementById('level'); lv.textContent=risk.level; lv.style.color=color(risk.score);
   kOpen.textContent=risk.openFindings; kMit.textContent=risk.mitigatedFindings; kRes.textContent=risk.resolvedFindings;
-  document.getElementById('ai').textContent = ai.aiEnabled ? 'IA: Claude ativo' : 'IA: modo offline (defina ANTHROPIC_API_KEY)';
+  document.getElementById('ai').textContent = ai.aiEnabled ? 'IA: '+ai.provider+' ativo' : 'IA: modo offline (defina GEMINI_API_KEY)';
   spark(risk.timeline);
   const t=Object.entries(risk.byPiiType).sort((a,b)=>b[1]-a[1]);
   document.getElementById('types').innerHTML = t.length? t.map(([k,v])=>`<div style="display:flex;gap:8px;align-items:center;margin:4px 0"><span style="width:110px">${k}</span><div class="bar" style="flex:1"><i style="width:${Math.min(100,v*25)}%;background:var(--hi)"></i></div><b>${v}</b></div>`).join('') : 'Nenhuma exposição aberta';
@@ -117,7 +117,9 @@ async function refresh(){
     <td><code>${esc(x.evidenceMasked)}</code></td><td class="muted">${esc(x.file)}${x.line?':'+x.line:''}</td>
     <td>${(x.status==='Open'||x.status==='Blocked')?`<button onclick="remediate('${x.id}',this)">Remediar com IA</button> <button onclick="resolveF('${x.id}')">Marcar corrigido</button>`:''}<div id="rem-${x.id}"></div></td></tr>`).join('')||'<tr><td colspan=7 class="muted">Nenhum fluxo. Clique em "Simular tráfego".</td></tr>';
 }
-refresh(); setInterval(refresh,4000);
+refresh(); setInterval(()=>{ if(!window.pausa) refresh(); },4000);
 </script>
 </body>
 </html>
+
+

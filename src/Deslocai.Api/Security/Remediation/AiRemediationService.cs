@@ -6,15 +6,16 @@ namespace Deslocai.Security.Remediation;
 
 public record RemediationResult(string Source, string Explanation, string Severity, string Lgpd, string FixedCode, string[] Verification);
 
-
+/// <summary>
+/// Remediação assistida por IA: envia o finding (JÁ MASCARADO, nunca PII real) + trecho de código à API do Claude
+/// e recebe explicação, artigo da LGPD e patch em C#. Sem ANTHROPIC_API_KEY, usa um motor de regras offline.
+/// </summary>
 public class AiRemediationService
 {
-    private readonly HttpClient _http;
-    private readonly string? _key = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
-    private readonly string _model = Environment.GetEnvironmentVariable("ANTHROPIC_MODEL") ?? "claude-sonnet-5-5";
+    private readonly LlmClient _llm;
 
-    public AiRemediationService(HttpClient http) => _http = http;
-    public bool AiEnabled => !string.IsNullOrWhiteSpace(_key);
+    public AiRemediationService(LlmClient llm) => _llm = llm;
+    public bool AiEnabled => _llm.Enabled;
 
     public async Task<RemediationResult> RemediateAsync(Finding f, CancellationToken ct = default)
     {
@@ -37,22 +38,16 @@ public class AiRemediationService
             .AppendLine($"Envolve PCD/idoso: {f.VulnerableGroup}").AppendLine($"Evidência (mascarada): {f.EvidenceMasked}")
             .AppendLine($"Código ({f.File}:{f.Line}):").AppendLine(f.CodeSnippet).ToString();
 
-        var payload = JsonSerializer.Serialize(new { model = _model, max_tokens = 1000, system, messages = new[] { new { role = "user", content = user } } });
-        using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages") { Content = new StringContent(payload, Encoding.UTF8, "application/json") };
-        req.Headers.Add("x-api-key", _key); req.Headers.Add("anthropic-version", "2023-06-01");
-        using var resp = await _http.SendAsync(req, ct);
-        resp.EnsureSuccessStatusCode();
-        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-        var text = string.Concat(doc.RootElement.GetProperty("content").EnumerateArray().Where(c => c.GetProperty("type").GetString() == "text").Select(c => c.GetProperty("text").GetString()));
+        var text = await _llm.CompleteAsync(system, user.ToString(), 1500, json: true, ct);
         text = text.Trim().Trim('`'); if (text.StartsWith("json", StringComparison.OrdinalIgnoreCase)) text = text[4..];
         using var j = JsonDocument.Parse(text);
         var r = j.RootElement;
-        return new RemediationResult($"claude ({_model})", r.GetProperty("explanation").GetString() ?? "", r.GetProperty("severity").GetString() ?? "",
+        return new RemediationResult(_llm.Label, r.GetProperty("explanation").GetString() ?? "", r.GetProperty("severity").GetString() ?? "",
             r.GetProperty("lgpd").GetString() ?? "", r.GetProperty("fixed_code").GetString() ?? "",
             r.GetProperty("verification").EnumerateArray().Select(x => x.GetString() ?? "").ToArray());
     }
 
-    
+    /// <summary>Motor offline: garante que o protótipo funcione (e seja demonstrável) sem chave de API.</summary>
     public static RemediationResult Offline(Finding f)
     {
         var types = string.Join(", ", f.PiiTypes);
